@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {
   Dimensions,
+  Image,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -18,10 +19,16 @@ import TrackPlayer, {
 } from 'react-native-track-player';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import {useSongs} from '../hooks/useSongs';
+import {encode as btoa} from 'base-64';
+
+const jsmediatags = require('jsmediatags');
 
 const MusicPlayer = () => {
   const {isLoading, error, data} = useSongs();
   const [trackIndex, setTrackIndex] = useState(0);
+  const [trackTitle, setTrackTitle] = useState();
+  const [trackArtist, setTrackArtist] = useState();
+  const [trackArtwork, setTrackArtwork] = useState();
 
   const playBackState = usePlaybackState();
   const progress = useProgress();
@@ -29,14 +36,6 @@ const MusicPlayer = () => {
   const setupPlayer = async () => {
     try {
       await TrackPlayer.setupPlayer();
-      await TrackPlayer.updateOptions({
-        capabilities: [
-          Capability.Play,
-          Capability.Pause,
-          Capability.SkipToNext,
-          Capability.SkipToPrevious,
-        ],
-      });
     } catch (error) {
       console.log(error);
     }
@@ -48,9 +47,39 @@ const MusicPlayer = () => {
         url: `https://shamisenstorage.blob.core.windows.net/songs/${songName}`,
       }));
       await TrackPlayer.add(songs);
+      await TrackPlayer.updateOptions({
+        capabilities: [
+          Capability.Play,
+          Capability.Pause,
+          Capability.SkipToNext,
+          Capability.SkipToPrevious,
+        ],
+      });
       await getTrackData();
+      await getMusicMetadata(songs[0].url);
       await TrackPlayer.play();
     }
+  };
+
+  const getMusicMetadata = async (url: string) => {
+    jsmediatags.read(url, {
+      onSuccess: info => {
+        const {
+          tags: {artist, title, picture},
+        } = info;
+
+        const {data, format} = picture;
+        let base64String = '';
+        for (let i = 0; i < data.length; i++) {
+          base64String += String.fromCharCode(data[i]);
+        }
+
+        setTrackTitle(title);
+        setTrackArtist(artist);
+        setTrackArtwork(`data:${format};base64,${btoa(base64String)}`);
+      },
+      onError: err => console.log(err),
+    });
   };
 
   useEffect(() => {
@@ -62,7 +91,8 @@ const MusicPlayer = () => {
 
   useTrackPlayerEvents([Event.PlaybackTrackChanged], async event => {
     if (event.type === Event.PlaybackTrackChanged && event.nextTrack !== null) {
-      await TrackPlayer.getTrack(event.nextTrack);
+      const track = await TrackPlayer.getTrack(event.nextTrack);
+      await getMusicMetadata(track.url);
       setTrackIndex(event.nextTrack);
     }
   });
@@ -70,9 +100,10 @@ const MusicPlayer = () => {
   const getTrackData = async () => {
     const currentTrackIndex = await TrackPlayer.getCurrentTrack();
     if (currentTrackIndex) {
-      await TrackPlayer.getTrack(currentTrackIndex);
-
+      const trackIndex = await TrackPlayer.getCurrentTrack();
+      const trackObject = await TrackPlayer.getTrack(trackIndex);
       setTrackIndex(trackIndex);
+      await getMusicMetadata(trackObject?.url);
     }
   };
 
@@ -117,6 +148,23 @@ const MusicPlayer = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.mainContainer}>
+        <View style={styles.mainWrapper}>
+          {trackArtwork && (
+            <Image source={trackArtwork} style={styles.imageWrapper} />
+          )}
+        </View>
+        <View style={styles.songText}>
+          <Text
+            style={[styles.songContent, styles.songTitle]}
+            numberOfLines={3}>
+            {trackTitle}
+          </Text>
+          <Text
+            style={[styles.songContent, styles.songArtist]}
+            numberOfLines={2}>
+            {trackArtist}
+          </Text>
+        </View>
         <View>
           <Slider
             value={progress.position}
