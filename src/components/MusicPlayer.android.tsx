@@ -19,9 +19,6 @@ import TrackPlayer, {
 } from 'react-native-track-player';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import {useSongs} from '../hooks/useSongs';
-import {encode as btoa} from 'base-64';
-
-const jsmediatags = require('jsmediatags');
 
 const MusicPlayer = () => {
   const {isLoading, error, data} = useSongs();
@@ -43,10 +40,8 @@ const MusicPlayer = () => {
 
   const queueSongsAndPlay = async () => {
     if (data) {
-      const songs = data?.songs.map(songName => ({
-        url: `https://shamisenstorage.blob.core.windows.net/songs/${songName}`,
-      }));
-      await TrackPlayer.add(songs);
+      await TrackPlayer.add(data.songs);
+      await getTrackData();
       await TrackPlayer.updateOptions({
         capabilities: [
           Capability.Play,
@@ -55,31 +50,8 @@ const MusicPlayer = () => {
           Capability.SkipToPrevious,
         ],
       });
-      await getTrackData();
-      await getMusicMetadata(songs[0].url);
       await TrackPlayer.play();
     }
-  };
-
-  const getMusicMetadata = async (url: string) => {
-    jsmediatags.read(url, {
-      onSuccess: info => {
-        const {
-          tags: {artist, title, picture},
-        } = info;
-
-        const {data, format} = picture;
-        let base64String = '';
-        for (let i = 0; i < data.length; i++) {
-          base64String += String.fromCharCode(data[i]);
-        }
-
-        setTrackTitle(title);
-        setTrackArtist(artist);
-        setTrackArtwork(`data:${format};base64,${btoa(base64String)}`);
-      },
-      onError: err => console.log(err),
-    });
   };
 
   useEffect(() => {
@@ -91,19 +63,28 @@ const MusicPlayer = () => {
 
   useTrackPlayerEvents([Event.PlaybackTrackChanged], async event => {
     if (event.type === Event.PlaybackTrackChanged && event.nextTrack !== null) {
-      const track = await TrackPlayer.getTrack(event.nextTrack);
-      await getMusicMetadata(track.url);
+      //@ts-ignore
+      const {title, artist, artwork} = await TrackPlayer.getTrack(
+        event.nextTrack,
+      );
       setTrackIndex(event.nextTrack);
+      setTrackTitle(title);
+      setTrackArtist(artist);
+      setTrackArtwork(artwork);
     }
   });
 
   const getTrackData = async () => {
     const currentTrackIndex = await TrackPlayer.getCurrentTrack();
     if (currentTrackIndex) {
-      const trackIndex = await TrackPlayer.getCurrentTrack();
-      const trackObject = await TrackPlayer.getTrack(trackIndex);
+      //@ts-ignore
+      const {title, artist, artwork} = await TrackPlayer.getTrack(
+        currentTrackIndex,
+      );
       setTrackIndex(trackIndex);
-      await getMusicMetadata(trackObject?.url);
+      setTrackTitle(title);
+      setTrackArtist(artist);
+      setTrackArtwork(artwork);
     }
   };
 
@@ -150,7 +131,7 @@ const MusicPlayer = () => {
       <View style={styles.mainContainer}>
         <View style={styles.mainWrapper}>
           {trackArtwork && (
-            <Image source={trackArtwork} style={styles.imageWrapper} />
+            <Image source={{uri: trackArtwork}} style={styles.imageWrapper} />
           )}
         </View>
         <View style={styles.songText}>

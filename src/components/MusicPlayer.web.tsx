@@ -55,14 +55,12 @@ const MusicPlayer = () => {
   }
 
   return (
-    <audio ref={player} controls>
-      {data && (
-        <source
-          type="audio/mpeg"
-          src={data.baseStorageUrl + '/' + data.songs[0]}
-        />
-      )}
-    </audio>
+    <div>
+      {data && <img src={data.songs[0].artwork} />}
+      <audio ref={player} controls>
+        {data && <source type="audio/mpeg" src={data.songs[0].url} />}
+      </audio>
+    </div>
   );
 };
 
