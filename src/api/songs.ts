@@ -1,17 +1,16 @@
 import axios from 'axios';
 // import {API_BASE_URL} from '@env';
 
-interface Song {
+export interface Song {
   id: string;
   url: string;
   artwork?: string;
   title?: string;
-  artist: string;
+  artist?: string;
 }
 
 interface GetSongsResponse {
   songs: Song[];
-  baseStorageUrl: string;
   sasUri: string;
 }
 

@@ -1,10 +1,15 @@
-import React, {useEffect, useRef} from 'react';
+import {useLiveQuery} from 'dexie-react-hooks';
+import React, {useEffect, useRef, useState} from 'react';
+import {db} from '../db/web/db';
 import {useSongs} from '../hooks/useSongs';
+import {playSong} from '../utils/web/utils';
 
 const MusicPlayer = () => {
   const player = useRef<HTMLDivElement>(null);
 
   const {isLoading, error, data} = useSongs();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const cachedSongs = useLiveQuery(() => db.songs.toArray());
 
   const attachActionHandlersForMobileDevices = () => {
     //@ts-ignore
@@ -41,9 +46,23 @@ const MusicPlayer = () => {
   };
   useEffect(() => {
     attachActionHandlersForMobileDevices();
-    // player.current.onended = () =>
-    //   playNextSong();
-  }, []);
+    if (player.current) {
+      //@ts-ignore
+      player.current.onended = () =>
+        setCurrentIndex(index => {
+          if (data && index === data.songs.length - 1) {
+            return 0;
+          }
+          return index + 1;
+        });
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (data) {
+      playSong(player, data.songs[currentIndex], cachedSongs);
+    }
+  }, [data, cachedSongs, currentIndex]);
 
   if (isLoading) {
     return 'Loading...';
@@ -56,9 +75,11 @@ const MusicPlayer = () => {
 
   return (
     <div>
-      {data && <img src={data.songs[0].artwork} />}
+      {data && <img src={data.songs[currentIndex].artwork} />}
       <audio ref={player} controls>
-        {data && <source type="audio/mpeg" src={data.songs[0].url} />}
+        {data && (
+          <source type="audio/mpeg" src={data.songs[currentIndex].url} />
+        )}
       </audio>
     </div>
   );
