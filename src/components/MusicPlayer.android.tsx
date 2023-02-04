@@ -19,8 +19,8 @@ import TrackPlayer, {
 } from 'react-native-track-player';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import {useSongs} from '../hooks/useSongs';
-import {saveSong} from '../db/mobile/db';
-import RNFS from 'react-native-fs';
+import {createTable, saveSong, getSongs} from '../db/mobile/db';
+import {open} from 'react-native-quick-sqlite';
 
 const MusicPlayer = () => {
   const {isLoading, error, data} = useSongs();
@@ -32,9 +32,11 @@ const MusicPlayer = () => {
   const playBackState = usePlaybackState();
   const progress = useProgress();
 
-  const setupPlayer = async () => {
+  const db = open({name: 'shamisen.db', location: 'default'});
+
+  const setupPlayerAndDatabase = async () => {
     try {
-      await TrackPlayer.setupPlayer();
+      Promise.all([TrackPlayer.setupPlayer(), createTable(db)]);
     } catch (error) {
       console.log(error);
     }
@@ -42,11 +44,10 @@ const MusicPlayer = () => {
 
   const queueSongsAndPlay = async () => {
     if (data) {
-      await TrackPlayer.add([
-        {id: '1', url: RNFS.DocumentDirectoryPath + '/test'},
-      ]);
+      // await saveSong(db, data.songs[0]);
+      const songs = await getSongs(db);
+      await TrackPlayer.add(songs);
       await getTrackData();
-      // saveSong(data.songs[0]);
       await TrackPlayer.updateOptions({
         capabilities: [
           Capability.Play,
@@ -119,7 +120,7 @@ const MusicPlayer = () => {
   };
 
   useEffect(() => {
-    setupPlayer();
+    setupPlayerAndDatabase();
   }, []);
 
   if (isLoading) {
